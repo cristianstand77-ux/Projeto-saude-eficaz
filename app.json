@@ -24,6 +24,18 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+
+    "plugins" : [
+
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Permitir que o app use sua localização para navegação em tempo real."
+        }
+      ]
+    
+    ]
+
   }
 }
