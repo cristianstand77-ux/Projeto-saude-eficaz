@@ -1,252 +1,119 @@
+import React, { useState } from 'react'; // IMPORTANTE: Adicionado useState
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
 import Colors from './src/styles/colors';
+import MapScreen from './leaflet';
+
+// 1. Centralizamos os dados em uma lista (Array)
+const DADOS_LOCAIS = [
+  { id: '1', nome: 'Hospital Regional', tipo: 'Hospital', dist: '1,2 km', status: 'Atendimento rápido', percent: 32, cor: Colors.status.free },
+  { id: '2', nome: 'UPA Norte', tipo: 'UPA', dist: '2,5 km', status: 'Espera moderada', percent: 58, cor: Colors.status.moderate },
+  { id: '3', nome: 'Pronto-Socorro Central', tipo: 'Hospital', dist: '3,8 km', status: 'Alta lotação', percent: 89, cor: Colors.status.busy },
+];
 
 export default function App() {
+  // 2. Criamos o estado da busca
+  const [busca, setBusca] = useState('');
+
+  // 3. Criamos a lista filtrada dinamicamente
+  const locaisFiltrados = DADOS_LOCAIS.filter(item => 
+    item.nome.toLowerCase().includes(busca.toLowerCase()) || 
+    item.tipo.toLowerCase().includes(busca.toLowerCase())
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
 
-      {/* Cabeçalho */}
-     <View style={styles.header}>
-  <View style={styles.headerRow}>
-    <View>
-      <Text style={styles.headerTitle}>Saúde em Paz</Text>
-      <Text style={styles.headerSubtitle}>Encontre atendimento perto de você</Text>
-    </View>
-    <Text style={styles.watermark}>guerreiros{'\n'}do código</Text>
-  </View>
-</View>
+      <View style={styles.header}>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.headerTitle}>Saúde em Paz</Text>
+            <Text style={styles.headerSubtitle}>Encontre atendimento perto de você</Text>
+          </View>
+          <Text style={styles.watermark}>guerreiros{'\n'}do código</Text>
+        </View>
+      </View>
 
-      {/* Barra de busca */}
+      {/* 4. CONECTAMOS O INPUT AO ESTADO */}
       <View style={styles.searchContainer}>
         <TextInput
           style={styles.searchInput}
           placeholder="Buscar hospital, UPA, clínica..."
           placeholderTextColor={Colors.white.ghost}
+          value={busca}
+          onChangeText={(t) => setBusca(t)} // Isso faz a pesquisa funcionar
         />
       </View>
 
-      {/* Filtros */}
+      {/* Filtros que também pesquisam ao clicar */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersRow}>
-        <TouchableOpacity style={[styles.filterBtn, styles.filterActive]}>
-          <Text style={styles.filterTextActive}>Todos</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.filterBtn}>
-          <Text style={styles.filterText}>Hospital</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.filterBtn}>
-          <Text style={styles.filterText}>UPA</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.filterBtn}>
-          <Text style={styles.filterText}>Clínica</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.filterBtn}>
-          <Text style={styles.filterText}>Farmácia</Text>
-        </TouchableOpacity>
+        {['Todos', 'Hospital', 'UPA', 'Clínica'].map((filtro) => (
+          <TouchableOpacity 
+            key={filtro} 
+            style={[styles.filterBtn, (busca === filtro || (filtro === 'Todos' && busca === '')) && styles.filterActive]}
+            onPress={() => setBusca(filtro === 'Todos' ? '' : filtro)}
+          >
+            <Text style={styles.filterText}>{filtro}</Text>
+          </TouchableOpacity>
+        ))}
       </ScrollView>
 
-      {/* Área do mapa (placeholder até integrar react-native-maps) */}
-      <View style={styles.mapPlaceholder}>
-        <Text style={styles.mapPlaceholderText}>🗺️ Mapa será carregado aqui</Text>
-        <Text style={styles.mapPlaceholderSub}>react-native-maps</Text>
+      <View style={styles.mapContainer}> 
+        <MapScreen />
       </View>
 
-      {/* Lista de locais próximos */}
       <ScrollView style={styles.listContainer}>
-        <Text style={styles.sectionTitle}>Próximos de você</Text>
+        <Text style={styles.sectionTitle}>
+          {busca ? `Resultados para "${busca}"` : "Próximos de você"}
+        </Text>
 
-        {/* Card — livre */}
-        <TouchableOpacity style={styles.card}>
-          <View style={styles.cardLeft}>
-            <Text style={styles.cardName}>Hospital Regional</Text>
-            <Text style={styles.cardType}>Hospital • 1,2 km</Text>
-            <Text style={styles.cardWait}>Atendimento rápido</Text>
-          </View>
-          <View style={[styles.statusBadge, { backgroundColor: Colors.status.free }]}>
-            <Text style={styles.statusText}>32%</Text>
-          </View>
-        </TouchableOpacity>
-
-        {/* Card — moderado */}
-        <TouchableOpacity style={styles.card}>
-          <View style={styles.cardLeft}>
-            <Text style={styles.cardName}>UPA Norte</Text>
-            <Text style={styles.cardType}>UPA • 2,5 km</Text>
-            <Text style={styles.cardWait}>Espera moderada</Text>
-          </View>
-          <View style={[styles.statusBadge, { backgroundColor: Colors.status.moderate }]}>
-            <Text style={styles.statusText}>58%</Text>
-          </View>
-        </TouchableOpacity>
-
-        {/* Card — lotado */}
-        <TouchableOpacity style={styles.card}>
-          <View style={styles.cardLeft}>
-            <Text style={styles.cardName}>Pronto-Socorro Central</Text>
-            <Text style={styles.cardType}>Hospital • 3,8 km</Text>
-            <Text style={styles.cardWait}>Alta lotação</Text>
-          </View>
-          <View style={[styles.statusBadge, { backgroundColor: Colors.status.busy }]}>
-            <Text style={styles.statusText}>89%</Text>
-          </View>
-        </TouchableOpacity>
-
+        {/* 5. RENDERIZAMOS A LISTA FILTRADA */}
+        {locaisFiltrados.length > 0 ? (
+          locaisFiltrados.map((item) => (
+            <TouchableOpacity key={item.id} style={styles.card}>
+              <View style={styles.cardLeft}>
+                <Text style={styles.cardName}>{item.nome}</Text>
+                <Text style={styles.cardType}>{item.tipo} • {item.dist}</Text>
+                <Text style={styles.cardWait}>{item.status}</Text>
+              </View>
+              <View style={[styles.statusBadge, { backgroundColor: item.cor }]}>
+                <Text style={styles.statusText}>{item.percent}%</Text>
+              </View>
+            </TouchableOpacity>
+          ))
+        ) : (
+          <Text style={{ color: Colors.white.ghost, textAlign: 'center', marginTop: 20 }}>
+            Nenhum local encontrado.
+          </Text>
+        )}
       </ScrollView>
-
     </SafeAreaView>
   );
 }
 
+// ... mantenha seus estilos (styles) abaixo iguais
 const styles = StyleSheet.create({
-
-  // Layout base
-  container: {
-    flex: 1,
-    backgroundColor: Colors.black.pure,
-  },
-
-  // Cabeçalho
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12,
-    backgroundColor: Colors.black.rich,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.black.surface,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: Colors.blue.medium,
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    color: Colors.white.ghost,
-    marginTop: 2,
-  },
-
-  // Busca
-  searchContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: Colors.black.rich,
-  },
-  searchInput: {
-    backgroundColor: Colors.black.muted,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    color: Colors.white.pure,
-    fontSize: 14,
-    borderWidth: 1,
-    borderColor: Colors.black.surface,
-  },
-
-  // Filtros
-  filtersRow: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: Colors.black.rich,
-  },
-  filterBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: Colors.black.surface,
-    marginRight: 8,
-  },
-  filterActive: {
-    backgroundColor: Colors.blue.primary,
-    borderColor: Colors.blue.primary,
-  },
-  filterText: {
-    color: Colors.white.muted,
-    fontSize: 13,
-  },
-  filterTextActive: {
-    color: Colors.white.pure,
-    fontSize: 13,
-    fontWeight: '500',
-  },
-
-  // Mapa placeholder
-  mapPlaceholder: {
-    height: 200,
-    backgroundColor: Colors.black.soft,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.black.surface,
-  },
-  mapPlaceholderText: {
-    color: Colors.white.muted,
-    fontSize: 16,
-  },
-  mapPlaceholderSub: {
-    color: Colors.white.ghost,
-    fontSize: 12,
-    marginTop: 4,
-  },
-
-  // Lista
-  listContainer: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.white.soft,
-    marginBottom: 12,
-  },
-
-  // Cards
-  card: {
-    backgroundColor: Colors.black.rich,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: Colors.black.surface,
-  },
-  cardLeft: {
-    flex: 1,
-  },
-  cardName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.white.pure,
-  },
-  cardType: {
-    fontSize: 12,
-    color: Colors.white.ghost,
-    marginTop: 3,
-  },
-  cardWait: {
-    fontSize: 12,
-    color: Colors.blue.pale,
-    marginTop: 4,
-  },
-
-  // Badge de lotação
-  statusBadge: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 12,
-  },
-  statusText: {
-    color: Colors.white.pure,
-    fontSize: 13,
-    fontWeight: 'bold',
-  },
-
+  container: { flex: 1, backgroundColor: Colors.black.pure },
+  header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, backgroundColor: Colors.black.rich, borderBottomWidth: 1, borderBottomColor: Colors.black.surface },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  headerTitle: { fontSize: 22, fontWeight: 'bold', color: Colors.blue.medium },
+  headerSubtitle: { fontSize: 13, color: Colors.white.ghost, marginTop: 2 },
+  watermark: { fontSize: 10, color: Colors.white.ghost, textAlign: 'right', opacity: 0.5, textTransform: 'uppercase' },
+  searchContainer: { paddingHorizontal: 16, paddingVertical: 12, backgroundColor: Colors.black.rich },
+  searchInput: { backgroundColor: Colors.black.muted, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, color: Colors.white.pure, fontSize: 14, borderWidth: 1, borderColor: Colors.black.surface },
+  filtersRow: { maxHeight: 60, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: Colors.black.rich },
+  filterBtn: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: Colors.black.surface, marginRight: 8, height: 32 },
+  filterActive: { backgroundColor: Colors.blue.primary, borderColor: Colors.blue.primary },
+  filterText: { color: Colors.white.pure, fontSize: 13 },
+  mapContainer: { height: 300, width: '100%', overflow: 'hidden', backgroundColor: Colors.black.soft },
+  listContainer: { flex: 1, paddingHorizontal: 16, paddingTop: 16 },
+  sectionTitle: { fontSize: 15, fontWeight: '600', color: Colors.white.soft, marginBottom: 12 },
+  card: { backgroundColor: Colors.black.rich, borderRadius: 12, padding: 14, marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: Colors.black.surface },
+  cardLeft: { flex: 1 },
+  cardName: { fontSize: 15, fontWeight: '600', color: Colors.white.pure },
+  cardType: { fontSize: 12, color: Colors.white.ghost, marginTop: 3 },
+  cardWait: { fontSize: 12, color: Colors.blue.pale, marginTop: 4 },
+  statusBadge: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginLeft: 12 },
+  statusText: { color: Colors.white.pure, fontSize: 13, fontWeight: 'bold' },
 });
