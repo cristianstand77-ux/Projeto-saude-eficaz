@@ -1,119 +1,89 @@
-import React, { useState } from 'react'; // IMPORTANTE: Adicionado useState
+import React, { useState, useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
+import * as Location from 'expo-location';
 import Colors from './src/styles/colors';
-import MapScreen from './leaflet';
+import MapScreen from './leaflet'; 
 
-// 1. Centralizamos os dados em uma lista (Array)
-const DADOS_LOCAIS = [
-  { id: '1', nome: 'Hospital Regional', tipo: 'Hospital', dist: '1,2 km', status: 'Atendimento rápido', percent: 32, cor: Colors.status.free },
-  { id: '2', nome: 'UPA Norte', tipo: 'UPA', dist: '2,5 km', status: 'Espera moderada', percent: 58, cor: Colors.status.moderate },
-  { id: '3', nome: 'Pronto-Socorro Central', tipo: 'Hospital', dist: '3,8 km', status: 'Alta lotação', percent: 89, cor: Colors.status.busy },
+// Cálculo de Distância (Haversine)
+function calcularDistancia(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return (R * c).toFixed(1); 
+}
+
+const DADOS_REAIS = [
+  { id: '1', nome: 'UPA Morada do Ouro', tipo: 'UPA', status: 'Atendimento rápido', percent: 32, cor: Colors.status.free, lat: -15.5684, lng: -56.0594 },
+  { id: '2', nome: 'Hospital São Mateus', tipo: 'Hospital', status: 'Espera moderada', percent: 58, cor: Colors.status.moderate, lat: -15.5869, lng: -56.0694 },
+  { id: '3', nome: 'Clínica Sou Mais Saúde', tipo: 'Clínica', status: 'Alta lotação', percent: 89, cor: Colors.status.busy, lat: -15.5925, lng: -56.0841 },
 ];
 
 export default function App() {
-  // 2. Criamos o estado da busca
+  const mapRef = useRef(null);
   const [busca, setBusca] = useState('');
+  const [minhaPosicao, setMinhaPosicao] = useState({ lat: -15.5989, lng: -56.0949 });
 
-  // 3. Criamos a lista filtrada dinamicamente
-  const locaisFiltrados = DADOS_LOCAIS.filter(item => 
-    item.nome.toLowerCase().includes(busca.toLowerCase()) || 
-    item.tipo.toLowerCase().includes(busca.toLowerCase())
-  );
+  useEffect(() => {
+    (async () => {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        let location = await Location.getCurrentPositionAsync({});
+        setMinhaPosicao({ lat: location.coords.latitude, lng: location.coords.longitude });
+      }
+    })();
+  }, []);
+
+  const listaFiltrada = DADOS_REAIS
+    .filter(it => it.nome.toLowerCase().includes(busca.toLowerCase()))
+    .map(it => ({ ...it, dist: calcularDistancia(minhaPosicao.lat, minhaPosicao.lng, it.lat, it.lng) }))
+    .sort((a, b) => a.percent - b.percent);
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
-
       <View style={styles.header}>
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.headerTitle}>Saúde em Paz</Text>
-            <Text style={styles.headerSubtitle}>Encontre atendimento perto de você</Text>
-          </View>
-          <Text style={styles.watermark}>guerreiros{'\n'}do código</Text>
-        </View>
+        <Text style={styles.headerTitle}>Saúde em Paz</Text>
+        <Text style={styles.headerSubtitle}>Cuiabá - Monitoramento Real</Text>
       </View>
 
-      {/* 4. CONECTAMOS O INPUT AO ESTADO */}
       <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Buscar hospital, UPA, clínica..."
-          placeholderTextColor={Colors.white.ghost}
-          value={busca}
-          onChangeText={(t) => setBusca(t)} // Isso faz a pesquisa funcionar
-        />
+        <TextInput style={styles.searchInput} placeholder="Buscar unidade..." placeholderTextColor="#888" value={busca} onChangeText={setBusca} />
       </View>
-
-      {/* Filtros que também pesquisam ao clicar */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersRow}>
-        {['Todos', 'Hospital', 'UPA', 'Clínica'].map((filtro) => (
-          <TouchableOpacity 
-            key={filtro} 
-            style={[styles.filterBtn, (busca === filtro || (filtro === 'Todos' && busca === '')) && styles.filterActive]}
-            onPress={() => setBusca(filtro === 'Todos' ? '' : filtro)}
-          >
-            <Text style={styles.filterText}>{filtro}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
 
       <View style={styles.mapContainer}> 
-        <MapScreen />
+        <MapScreen ref={mapRef} hospitaisFiltrados={listaFiltrada} minhaPosicao={minhaPosicao} />
       </View>
 
       <ScrollView style={styles.listContainer}>
-        <Text style={styles.sectionTitle}>
-          {busca ? `Resultados para "${busca}"` : "Próximos de você"}
-        </Text>
-
-        {/* 5. RENDERIZAMOS A LISTA FILTRADA */}
-        {locaisFiltrados.length > 0 ? (
-          locaisFiltrados.map((item) => (
-            <TouchableOpacity key={item.id} style={styles.card}>
-              <View style={styles.cardLeft}>
-                <Text style={styles.cardName}>{item.nome}</Text>
-                <Text style={styles.cardType}>{item.tipo} • {item.dist}</Text>
-                <Text style={styles.cardWait}>{item.status}</Text>
-              </View>
-              <View style={[styles.statusBadge, { backgroundColor: item.cor }]}>
-                <Text style={styles.statusText}>{item.percent}%</Text>
-              </View>
-            </TouchableOpacity>
-          ))
-        ) : (
-          <Text style={{ color: Colors.white.ghost, textAlign: 'center', marginTop: 20 }}>
-            Nenhum local encontrado.
-          </Text>
-        )}
+        {listaFiltrada.map((item) => (
+          <TouchableOpacity key={item.id} style={styles.card} onPress={() => mapRef.current.tracarRotaNoMapa(item.lat, item.lng)}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardName}>{item.nome}</Text>
+              <Text style={styles.cardType}>{item.tipo} • {item.dist} km</Text>
+            </View>
+            <View style={[styles.badge, { backgroundColor: item.cor }]}><Text style={styles.badgeText}>{item.percent}%</Text></View>
+          </TouchableOpacity>
+        ))}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-// ... mantenha seus estilos (styles) abaixo iguais
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.black.pure },
-  header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, backgroundColor: Colors.black.rich, borderBottomWidth: 1, borderBottomColor: Colors.black.surface },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  headerTitle: { fontSize: 22, fontWeight: 'bold', color: Colors.blue.medium },
-  headerSubtitle: { fontSize: 13, color: Colors.white.ghost, marginTop: 2 },
-  watermark: { fontSize: 10, color: Colors.white.ghost, textAlign: 'right', opacity: 0.5, textTransform: 'uppercase' },
-  searchContainer: { paddingHorizontal: 16, paddingVertical: 12, backgroundColor: Colors.black.rich },
-  searchInput: { backgroundColor: Colors.black.muted, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, color: Colors.white.pure, fontSize: 14, borderWidth: 1, borderColor: Colors.black.surface },
-  filtersRow: { maxHeight: 60, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: Colors.black.rich },
-  filterBtn: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: Colors.black.surface, marginRight: 8, height: 32 },
-  filterActive: { backgroundColor: Colors.blue.primary, borderColor: Colors.blue.primary },
-  filterText: { color: Colors.white.pure, fontSize: 13 },
-  mapContainer: { height: 300, width: '100%', overflow: 'hidden', backgroundColor: Colors.black.soft },
-  listContainer: { flex: 1, paddingHorizontal: 16, paddingTop: 16 },
-  sectionTitle: { fontSize: 15, fontWeight: '600', color: Colors.white.soft, marginBottom: 12 },
-  card: { backgroundColor: Colors.black.rich, borderRadius: 12, padding: 14, marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: Colors.black.surface },
-  cardLeft: { flex: 1 },
-  cardName: { fontSize: 15, fontWeight: '600', color: Colors.white.pure },
-  cardType: { fontSize: 12, color: Colors.white.ghost, marginTop: 3 },
-  cardWait: { fontSize: 12, color: Colors.blue.pale, marginTop: 4 },
-  statusBadge: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginLeft: 12 },
-  statusText: { color: Colors.white.pure, fontSize: 13, fontWeight: 'bold' },
+  container: { flex: 1, backgroundColor: '#000' },
+  header: { padding: 20, backgroundColor: '#111', borderBottomWidth: 1, borderBottomColor: '#222' },
+  headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#4facfe' },
+  headerSubtitle: { fontSize: 13, color: '#aaa' },
+  searchContainer: { padding: 15 },
+  searchInput: { backgroundColor: '#1A1D21', borderRadius: 10, padding: 12, color: '#fff', borderWidth: 1, borderColor: '#333' },
+  mapContainer: { height: 320, width: '94%', alignSelf: 'center', borderRadius: 20, overflow: 'hidden', marginVertical: 10, boxShadow: '0px 8px 24px rgba(0,0,0,0.5)' },
+  listContainer: { flex: 1, paddingHorizontal: 16 },
+  card: { backgroundColor: '#111', borderRadius: 15, padding: 16, marginBottom: 12, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#222' },
+  cardName: { fontSize: 16, fontWeight: 'bold', color: '#fff' },
+  cardType: { fontSize: 12, color: '#aaa', marginTop: 4 },
+  badge: { width: 45, height: 45, borderRadius: 25, alignItems: 'center', justifyContent: 'center' },
+  badgeText: { color: '#fff', fontWeight: 'bold', fontSize: 12 }
 });
